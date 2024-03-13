@@ -141,8 +141,3 @@ export {
   createCheckoutSession,
   createOnlineOrder,
 };
-
-async function card(e, res) {
-  
-  return next(new AppError("order not found", 404));
-}
