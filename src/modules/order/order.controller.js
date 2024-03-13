@@ -89,21 +89,46 @@ const createCheckoutSession = catchError(async (req, res, next) => {
 
 const createOnlineOrder = catchError(async (request, response) => {
   const sig = request.headers["stripe-signature"].toString();
-
   let event;
+  event = stripe.webhooks.constructEvent(request.body,sig,"whsec_UgYoNQitpVTiJ7qPtGFSdNff0SyTC44O");
 
-  try {
-    event = stripe.webhooks.constructEvent(
-      request.body,
-      sig,
-      "whsec_UgYoNQitpVTiJ7qPtGFSdNff0SyTC44O "
-    );
-  } catch (err) {
-    return response.status(400).send(`Webhook Error: ${err.message}`);
-  }
 
   if (event.type == "checkout.session.completed") {
-    card(event.data.object);
+    //get Cart
+  let cart = await cartModel.findById(event.data.object.client_reference_id);
+  if (!cart) return next(new AppError("cart no found", 404));
+
+  let user = await userModel.findOne({ email: event.data.object.customer_email });
+  //create order
+  const order = new orderModel({
+    user: user._id,
+    orderItems: cart.cartItems,
+    shippingAddress: event.data.object.metadata.shippingAddress,
+    totalOrderPrice: event.data.object.amount_total / 100,
+    paymentType: "card",
+    isPaid: true,
+    paidAt: Date.now(),
+  });
+  console.log(order);
+  await order.save();
+  //increment sold & decrement quantity
+  if (order) {
+    let options = cart.cartItems.map((prod) => {
+      return {
+        updateOne: {
+          filter: { _id: prod.product },
+          update: { $inc: { sold: prod.quantity, quantity: -prod.quantity } },
+        },
+      };
+    });
+    await productModel.bulkWrite(options);
+
+    //clear cart
+
+    await cartModel.findOneAndDelete({ user: user._id });
+
+    return res.json({ message: "success", order });
+  }
   } else {
     console.log(`Unhandled event type ${event.type}`);
   }
@@ -116,38 +141,7 @@ export {
   createOnlineOrder,
 };
 
-async function card(e) {
-  //get Cart
-  let cart = await cartModel.findById(e.client_reference_id);
-  if (!cart) return next(new AppError("cart no found", 404));
-
-  let user = await userModel.findOne({ email: e.email });
-  //create order
-  const order = new orderModel({
-    user: user._id,
-    orderItems: cart.cartItems,
-    shippingAddress: e.metadata.shippingAddress,
-    totalOrderPrice: e.amount_total / 100,
-    paymentType: "card",
-    isPaid: true,
-    paidAt: Date.now(),
-  });
-  console.log(order);
-  await order.save();
-  //increment sold & decrement quantity
-  let options = cart.cartItems.map((prod) => {
-    return {
-      updateOne: {
-        filter: { _id: prod.product },
-        update: { $inc: { sold: prod.quantity, quantity: -prod.quantity } },
-      },
-    };
-  });
-  await productModel.bulkWrite(options);
-
-  //clear cart
-
-  await cartModel.findOneAndDelete({ user: user._id });
-
-  res.json({ message: "success", order });
+async function card(e, res) {
+  
+  return next(new AppError("order not found", 404));
 }
