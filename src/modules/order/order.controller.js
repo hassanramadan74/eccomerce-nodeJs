@@ -93,15 +93,18 @@ const createOnlineOrder = catchError(async (request, response) => {
   let event;
 
   try {
-    event = stripe.webhooks.constructEvent(request.body, sig, "whsec_UgYoNQitpVTiJ7qPtGFSdNff0SyTC44O ");
+    event = stripe.webhooks.constructEvent(
+      request.body,
+      sig,
+      "whsec_UgYoNQitpVTiJ7qPtGFSdNff0SyTC44O "
+    );
   } catch (err) {
     return response.status(400).send(`Webhook Error: ${err.message}`);
   }
 
-  if(event.type=="checkout.session.completed"){
-    const checkoutSessionCompleted = event.data.object;
-    console.log('create order here');
-  }else{
+  if (event.type == "checkout.session.completed") {
+    card(event.data.object);
+  } else {
     console.log(`Unhandled event type ${event.type}`);
   }
 });
@@ -112,3 +115,39 @@ export {
   createCheckoutSession,
   createOnlineOrder,
 };
+
+async function card(e) {
+  //get Cart
+  let cart = await cartModel.findById(e.client_reference_id);
+  if (!cart) return next(new AppError("cart no found", 404));
+
+  let user = await userModel.findOne({ email: e.email });
+  //create order
+  const order = new orderModel({
+    user: user._id,
+    orderItems: cart.cartItems,
+    shippingAddress: e.metadata.shippingAddress,
+    totalOrderPrice: e.amount_total / 100,
+    paymentType: "card",
+    isPaid: true,
+    paidAt: Date.now(),
+  });
+  console.log(order);
+  await order.save();
+  //increment sold & decrement quantity
+  let options = cart.cartItems.map((prod) => {
+    return {
+      updateOne: {
+        filter: { _id: prod.product },
+        update: { $inc: { sold: prod.quantity, quantity: -prod.quantity } },
+      },
+    };
+  });
+  await productModel.bulkWrite(options);
+
+  //clear cart
+
+  await cartModel.findOneAndDelete({ user: user._id });
+
+  res.json({ message: "success", order });
+}
