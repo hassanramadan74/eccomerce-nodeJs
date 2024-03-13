@@ -86,9 +86,29 @@ const createCheckoutSession = catchError(async (req, res, next) => {
   });
   res.json({ message: "success", session });
 });
+
+const createOnlineOrder = catchError(async (request, response) => {
+  const sig = request.headers["stripe-signature"].toString();
+
+  let event;
+
+  try {
+    event = stripe.webhooks.constructEvent(request.body, sig, "whsec_UgYoNQitpVTiJ7qPtGFSdNff0SyTC44O ");
+  } catch (err) {
+    return response.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  if(event.type=="checkout.session.completed"){
+    const checkoutSessionCompleted = event.data.object;
+    console.log('create order here');
+  }else{
+    console.log(`Unhandled event type ${event.type}`);
+  }
+});
 export {
   createCashOrder,
   getSpecificOrder,
   getAllOrders,
   createCheckoutSession,
+  createOnlineOrder,
 };
