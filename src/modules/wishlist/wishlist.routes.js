@@ -9,8 +9,8 @@ const wishlistRouter = express.Router();
 
 wishlistRouter
 .route('/')
-.patch(protectedRoutes,allowedTo('user'),validation(addWishlistVal),addToWishlist)
-.get(protectedRoutes,allowedTo('user'),getAllWishlist)
+.patch(protectedRoutes,allowedTo('user' , 'admin'),validation(addWishlistVal),addToWishlist)
+.get(protectedRoutes,allowedTo('user' , 'admin'),getAllWishlist)
 
 
 wishlistRouter

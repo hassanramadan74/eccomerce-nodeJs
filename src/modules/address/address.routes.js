@@ -9,7 +9,7 @@ const addressRouter = express.Router();
 
 addressRouter
 .route('/')
-.patch(protectedRoutes,allowedTo('user'),validation(addAddressVal),addAddress)
+.patch(protectedRoutes,allowedTo('user' , 'admin'),validation(addAddressVal),addAddress)
 .get(protectedRoutes,allowedTo('user'),getAllAddresses)
 
 

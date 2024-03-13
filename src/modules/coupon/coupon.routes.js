@@ -20,14 +20,14 @@ const couponRouter = express.Router();
 
 couponRouter
   .route("/")
-  .post(protectedRoutes, allowedTo("user"), validation(addCouponVal), addCoupon)
+  .post(protectedRoutes,allowedTo('user' , 'admin'), validation(addCouponVal), addCoupon)
   .get(getAllCoupons);
 
 couponRouter
   .route("/:id")
   .put(
-    protectedRoutes,
-    allowedTo("user"),
+    protectedRoutes
+    ,allowedTo('user' , 'admin'),
     validation(updateCouponVal),
     updateCoupon
   )

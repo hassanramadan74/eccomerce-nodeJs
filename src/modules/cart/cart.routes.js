@@ -36,8 +36,8 @@ cartRouter
 
 cartRouter.post(
   "/applyCoupon",
-  protectedRoutes,
-  allowedTo("user"),
+  protectedRoutes
+  ,allowedTo('user' , 'admin'),
   applyCoupon
 );
 export default cartRouter;
