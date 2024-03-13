@@ -91,45 +91,51 @@ const createCheckoutSession = catchError(async (req, res, next) => {
 const createOnlineOrder = catchError(async (request, response) => {
   const sig = request.headers["stripe-signature"].toString();
   let event;
-  event = stripe.webhooks.constructEvent(request.body,sig,"whsec_UgYoNQitpVTiJ7qPtGFSdNff0SyTC44O");
+  event = stripe.webhooks.constructEvent(
+    request.body,
+    sig,
+    "whsec_UgYoNQitpVTiJ7qPtGFSdNff0SyTC44O"
+  );
 
-
+  console.log(event);
   if (event.type == "checkout.session.completed") {
     //get Cart
-  let cart = await cartModel.findById(event.data.object.client_reference_id);
-  if (!cart) return next(new AppError("cart no found", 404));
+    let cart = await cartModel.findById(event.data.object.client_reference_id);
+    if (!cart) return next(new AppError("cart no found", 404));
 
-  let user = await userModel.findOne({ email: event.data.object.customer_email });
-  //create order
-  const order = new orderModel({
-    user: user._id,
-    orderItems: cart.cartItems,
-    shippingAddress: event.data.object.metadata.shippingAddress,
-    totalOrderPrice: event.data.object.amount_total / 100,
-    paymentType: "card",
-    isPaid: true,
-    paidAt: Date.now(),
-  });
-  console.log(order);
-  await order.save();
-  //increment sold & decrement quantity
-  if (order) {
-    let options = cart.cartItems.map((prod) => {
-      return {
-        updateOne: {
-          filter: { _id: prod.product },
-          update: { $inc: { sold: prod.quantity, quantity: -prod.quantity } },
-        },
-      };
+    let user = await userModel.findOne({
+      email: event.data.object.customer_email,
     });
-    await productModel.bulkWrite(options);
+    //create order
+    const order = new orderModel({
+      user: user._id,
+      orderItems: cart.cartItems,
+      shippingAddress: event.data.object.metadata.shippingAddress,
+      totalOrderPrice: event.data.object.amount_total / 100,
+      paymentType: "card",
+      isPaid: true,
+      paidAt: Date.now(),
+    });
+    console.log(order);
+    await order.save();
+    //increment sold & decrement quantity
+    if (order) {
+      let options = cart.cartItems.map((prod) => {
+        return {
+          updateOne: {
+            filter: { _id: prod.product },
+            update: { $inc: { sold: prod.quantity, quantity: -prod.quantity } },
+          },
+        };
+      });
+      await productModel.bulkWrite(options);
 
-    //clear cart
+      //clear cart
 
-    await cartModel.findOneAndDelete({ user: user._id });
+      await cartModel.findOneAndDelete({ user: user._id });
 
-    return res.json({ message: "success", order });
-  }
+       response.json({ message: "success", order });
+    }
   } else {
     console.log(`Unhandled event type ${event.type}`);
   }
